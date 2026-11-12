@@ -168,16 +168,39 @@ export async function POST(req: NextRequest) {
       iterationCount: iteration,
     });
   } catch (error: unknown) {
-    const message =
+    const rawMessage =
       error instanceof Error ? error.message : "Internal server error occurred";
 
     // Never log secret keys
-    console.error("[CareSlot Chat API Error]:", message);
+    console.error("[CareSlot Chat API Error]:", rawMessage);
+
+    let userFacingError = "Failed to process appointment request. Please try again.";
+
+    if (
+      rawMessage.includes("API_KEY_INVALID") ||
+      rawMessage.includes("API key not valid")
+    ) {
+      userFacingError =
+        "Invalid Gemini API key. Please check your GEMINI_API_KEY in .env.local (Google AI Studio keys start with 'AIzaSy' and are 39 characters long).";
+    } else if (
+      rawMessage.includes("RESOURCE_EXHAUSTED") ||
+      rawMessage.includes("quota")
+    ) {
+      userFacingError =
+        "Gemini API rate limit or quota exceeded. Please check your AI Studio quota or try again in a moment.";
+    } else if (
+      rawMessage.includes("PGRST") ||
+      rawMessage.includes("database") ||
+      rawMessage.includes("Supabase")
+    ) {
+      userFacingError =
+        "Database connection error. Please verify your Supabase configuration and ensure the clinic schema is seeded.";
+    }
 
     return NextResponse.json(
       {
-        error: "Failed to process appointment request. Please try again.",
-        details: process.env.NODE_ENV === "development" ? message : undefined,
+        error: userFacingError,
+        details: process.env.NODE_ENV === "development" ? rawMessage : undefined,
       },
       { status: 500 }
     );
