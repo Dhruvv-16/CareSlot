@@ -36,18 +36,16 @@ function requireEnv(key: string): string {
   return value.trim();
 }
 
-const supabaseUrl = requireEnv("SUPABASE_URL");
-const supabaseServiceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-
 // ── Singleton admin client ────────────────────────────────────────────────────
-// Module-level singleton: created once per server process (not per request).
-// auth.persistSession = false  → no cookie/session storage (stateless server use)
-// auth.autoRefreshToken = false → no background token refresh timers
-
+// Lazily created on first property access so build-time static page collection
+// does not crash when environment variables are not yet injected.
 let _adminClient: SupabaseClient<Database> | null = null;
 
 function getAdminClient(): SupabaseClient<Database> {
   if (!_adminClient) {
+    const supabaseUrl = requireEnv("SUPABASE_URL");
+    const supabaseServiceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+
     _adminClient = createClient<Database>(supabaseUrl, supabaseServiceKey, {
       auth: {
         persistSession: false,
@@ -65,13 +63,17 @@ function getAdminClient(): SupabaseClient<Database> {
  * Uses the service-role key — bypasses Row Level Security.
  * All five CareSlot tables (departments, doctors, slots, patients, appointments)
  * have RLS enabled with no anon policies; this is the only valid access path.
- *
- * @example
- * // In a Server Action or API route:
- * import { adminDb } from "@/lib/supabase-admin";
- * const { data, error } = await adminDb.from("departments").select("*");
  */
-export const adminDb = getAdminClient();
+export const adminDb = new Proxy({} as SupabaseClient<Database>, {
+  get(_target, prop) {
+    const client = getAdminClient();
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof value === "function") {
+      return (value as Function).bind(client);
+    }
+    return value;
+  },
+});
 
 // ── Safety re-export guard ────────────────────────────────────────────────────
 // Explicitly block any accidental export of the raw key.
@@ -80,3 +82,4 @@ export const adminDb = getAdminClient();
 /** @internal — do not use or re-export */
 const _KEY_NEVER_EXPORT = Symbol("secret");
 export type { _KEY_NEVER_EXPORT as _DoNotExportSecrets };
+

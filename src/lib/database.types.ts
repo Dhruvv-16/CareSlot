@@ -2,11 +2,7 @@
  * database.types.ts
  *
  * TypeScript types derived from ps3_clinic_appointments.sql.
- * Keep in sync with the actual schema — do NOT invent columns.
- *
- * Generated manually from the authoritative SQL file.
- * When Supabase CLI is available, regenerate with:
- *   npx supabase gen types typescript --project-id <ref> > src/lib/database.types.ts
+ * Strictly adheres to GenericSchema for @supabase/supabase-js v2.
  */
 
 export type Json =
@@ -22,7 +18,7 @@ export interface Database {
     Tables: {
       departments: {
         Row: {
-          id: string;              // text PRIMARY KEY  e.g. 'D01'
+          id: string;              // text PRIMARY KEY e.g. 'D01'
           name: string;            // text NOT NULL
           common_issues: string;   // text NOT NULL — LLM routing vocabulary
         };
@@ -36,18 +32,19 @@ export interface Database {
           name?: string;
           common_issues?: string;
         };
+        Relationships: [];
       };
 
       doctors: {
         Row: {
-          id: string;               // text PRIMARY KEY  e.g. 'DR01'
+          id: string;               // text PRIMARY KEY e.g. 'DR01'
           name: string;             // text NOT NULL
-          department_id: string;    // text NOT NULL  FK → departments(id)
+          department_id: string;    // text NOT NULL FK → departments(id)
           qualification: string;    // text NOT NULL
           experience_years: number; // int NOT NULL
-          consultation_fee: number; // int NOT NULL  (in INR ₹)
-          languages: string[];      // text[] NOT NULL  PostgreSQL array
-          room: string;             // text NOT NULL  e.g. 'G-01'
+          consultation_fee: number; // int NOT NULL (in INR ₹)
+          languages: string[];      // text[] NOT NULL PostgreSQL array
+          room: string;             // text NOT NULL e.g. 'G-01'
         };
         Insert: {
           id: string;
@@ -69,14 +66,23 @@ export interface Database {
           languages?: string[];
           room?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "doctors_department_id_fkey";
+            columns: ["department_id"];
+            isOneToOne: false;
+            referencedRelation: "departments";
+            referencedColumns: ["id"];
+          }
+        ];
       };
 
       slots: {
         Row: {
           id: number;           // bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY
-          doctor_id: string;    // text NOT NULL  FK → doctors(id)
-          slot_date: string;    // date NOT NULL  (ISO 8601: 'YYYY-MM-DD')
-          start_time: string;   // time NOT NULL  ('HH:MM:SS')
+          doctor_id: string;    // text NOT NULL FK → doctors(id)
+          slot_date: string;    // date NOT NULL ('YYYY-MM-DD')
+          start_time: string;   // time NOT NULL ('HH:MM:SS')
           is_booked: boolean;   // boolean NOT NULL DEFAULT false
         };
         Insert: {
@@ -91,13 +97,22 @@ export interface Database {
           start_time?: string;
           is_booked?: boolean;
         };
+        Relationships: [
+          {
+            foreignKeyName: "slots_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          }
+        ];
       };
 
       patients: {
         Row: {
-          id: string;    // text PRIMARY KEY  e.g. 'P001'
+          id: string;    // text PRIMARY KEY e.g. 'P001'
           name: string;  // text NOT NULL
-          phone: string; // text NOT NULL  (no format constraint in schema)
+          phone: string; // text NOT NULL
           age: number;   // int NOT NULL
           city: string;  // text NOT NULL
         };
@@ -115,17 +130,18 @@ export interface Database {
           age?: number;
           city?: string;
         };
+        Relationships: [];
       };
 
       appointments: {
         Row: {
           id: number;           // bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY
-          patient_id: string;   // text NOT NULL  FK → patients(id)
-          doctor_id: string;    // text NOT NULL  FK → doctors(id)  (denormalized)
-          slot_id: number;      // bigint NOT NULL  FK → slots(id)
-          reason: string | null; // text  (nullable)
-          status: AppointmentStatus; // text NOT NULL DEFAULT 'booked'
-          created_at: string;   // timestamptz NOT NULL DEFAULT now()
+          patient_id: string;   // text NOT NULL FK → patients(id)
+          doctor_id: string;    // text NOT NULL FK → doctors(id)
+          slot_id: number;      // bigint NOT NULL FK → slots(id)
+          reason: string | null;
+          status: AppointmentStatus;
+          created_at: string;
         };
         Insert: {
           patient_id: string;
@@ -141,15 +157,62 @@ export interface Database {
           reason?: string | null;
           status?: AppointmentStatus;
         };
+        Relationships: [
+          {
+            foreignKeyName: "appointments_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_slot_id_fkey";
+            columns: ["slot_id"];
+            isOneToOne: false;
+            referencedRelation: "slots";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      book_appointment: {
+        Args: {
+          p_patient_id: string;
+          p_doctor_id: string;
+          p_slot_id: number;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
+      cancel_appointment: {
+        Args: {
+          p_patient_id: string;
+          p_appointment_id: number;
+        };
+        Returns: Json;
+      };
+      reschedule_appointment: {
+        Args: {
+          p_patient_id: string;
+          p_appointment_id: number;
+          p_new_slot_id: number;
+        };
+        Returns: Json;
+      };
+    };
     Enums: {
       appointment_status: AppointmentStatus;
     };
   };
 }
 
-/** Valid values for appointments.status (matches SQL CHECK constraint) */
 export type AppointmentStatus = "booked" | "cancelled" | "completed";

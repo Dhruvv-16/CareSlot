@@ -37,6 +37,4 @@ export const SLOT_END_TIME = "12:30" as const;
  * The LLM must prepend this verbatim before any other response.
  */
 export const EMERGENCY_MESSAGE =
-  "🚨 This sounds like a medical emergency. Please call 112 / 108 immediately " +
-  "or go to the nearest hospital Emergency Department right away. " +
-  "Do not wait for an outpatient appointment." as const;
+  "🚨 This sounds like a medical emergency. Please call 112 / 108 immediately or go to the nearest hospital Emergency Department right away. Do not wait for an outpatient appointment." as const;
